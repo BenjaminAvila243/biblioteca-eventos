@@ -3,7 +3,8 @@ import { AppModule } from './app.module.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  await app.listen(3010);
-  console.log('biblioteca-eventos escuchando en http://localhost:3010');
+  const puerto = Number(process.env.PUERTO ?? 3010);
+  await app.listen(puerto);
+  console.log(`biblioteca-eventos escuchando en http://localhost:${puerto}`);
 }
 void bootstrap();

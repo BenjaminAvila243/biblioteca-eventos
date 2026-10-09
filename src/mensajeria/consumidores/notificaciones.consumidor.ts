@@ -15,19 +15,36 @@ export class NotificacionesConsumidor implements OnModuleInit {
     await canal.consume(
       COLAS.notificaciones,
       (mensaje: ConsumeMessage | null) => {
-        if (!mensaje) return;
-        const evento = JSON.parse(mensaje.content.toString());
+        if (!mensaje) return;                        
 
-        this.log.log(`${mensaje.fields.routingKey} | aviso para ${evento.usuarioSub ?? 'nadie'}`);
-
-        this.mensajeria.publicar(EXCHANGES.comandos.nombre, ROUTING_KEYS.correoEnviar, {
-          para: 'lector@biblioteca.test',
-          asunto: `Tu prestamo ${evento.prestamoId}`,
-          cuerpo: `El libro ${evento.libroId} es tuyo hasta el ${evento.hasta}.`,
-          origen: mensaje.fields.routingKey,
-        });
-
-        canal.ack(mensaje);
+        try {
+          const evento = JSON.parse(mensaje.content.toString()) as Record<string, unknown>;
+          const rk = mensaje.fields.routingKey;
+          if (typeof evento.usuarioSub !== 'string' || evento.usuarioSub === '') {
+            throw new Error('el evento no trae usuarioSub');                 
+          }
+          const asuntos: Record<string, string> = {
+            [ROUTING_KEYS.prestamoCreado]: `Tu prestamo ${String(evento.prestamoId)}`,
+            [ROUTING_KEYS.prestamoDevuelto]: `Devolviste el prestamo ${String(evento.prestamoId)}`,
+          };
+          const asunto = asuntos[rk];
+          if (asunto) {
+            this.log.log(`${rk} | aviso para ${String(evento.usuarioSub)}`);
+            this.mensajeria.publicar(EXCHANGES.comandos.nombre, ROUTING_KEYS.correoEnviar, {
+              para: evento.usuarioSub,
+              asunto,
+              cuerpo: `Libro ${String(evento.libroId)}.`,
+              origen: rk,
+              eventoId: mensaje.properties.headers?.['x-evento-id'],           
+            });
+          } else {
+            this.log.log(`${rk} no amerita aviso`);
+          }
+          canal.ack(mensaje);                    
+        } catch (error) {
+          canal.nack(mensaje, false, false);        
+          this.log.error(`rechazado hacia la DLQ: ${(error as Error).message}`);
+        }
       },
       { noAck: false },
     );

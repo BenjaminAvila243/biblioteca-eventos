@@ -10,6 +10,7 @@ export class MensajeriaService implements OnModuleInit, OnModuleDestroy {
   private readonly url: string;
   private conexion!: ChannelModel;
   canal!: Channel;
+  abierto = false;
 
   constructor(config: ConfigService) {
     this.url = config.getOrThrow<string>('RABBITMQ_URL');
@@ -17,13 +18,15 @@ export class MensajeriaService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit(): Promise<void> {
     this.conexion = await connect(this.url);
-    // Sin estos dos escuchas, un error del broker tumba el proceso entero sin explicacion.
     this.conexion.on('error', (e: Error) => this.log.error(`conexion: ${e.message}`));
     this.canal = await this.conexion.createChannel();
+    this.abierto = true;
+    this.canal.on('close', () => { this.abierto = false; });
+    await this.canal.prefetch(1);
     this.canal.on('error', (e: Error) => this.log.error(`canal: ${e.message}`));
 
     await declararTopologia(this.canal);
-    this.log.log(`topologia declarada en ${this.url}`);
+    this.log.log('topologia declarada, prefetch en 1');
   }
 
   async onModuleDestroy(): Promise<void> {
