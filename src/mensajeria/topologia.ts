@@ -35,6 +35,7 @@ export function argumentosDeCola(cola: string): Options.AssertQueue {
   return {
     durable: true,
     arguments: {
+      'x-queue-type': 'quorum',
       'x-dead-letter-exchange': EXCHANGES.dlx.nombre,
       'x-dead-letter-routing-key': cola,
     },
@@ -47,7 +48,10 @@ export async function declararTopologia(canal: Channel): Promise<void> {
   }
 
   for (const clave of Object.keys(COLAS) as Array<keyof typeof COLAS>) {
-    await canal.assertQueue(DLQ[clave], { durable: true });
+    await canal.assertQueue(DLQ[clave], {
+      durable: true,
+      arguments: { 'x-queue-type': 'quorum' },
+    });
     await canal.bindQueue(DLQ[clave], EXCHANGES.dlx.nombre, COLAS[clave]);
   }
 
